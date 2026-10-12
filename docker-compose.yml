@@ -1,0 +1,60 @@
+# PostgreSQL 17 for ERNS local development and integration tests.
+#
+# Purpose is narrow: a real PostgreSQL for the integration tests. TESTING-STRATEGY.md lines 126-127
+# require one, because constraint and concurrency guarantees cannot be demonstrated by a mock.
+#
+# Two roles are provisioned by the init script, so that a fresh volume is immediately usable:
+#   erns_owner  NOLOGIN, owns the schema. Migrations run as the cluster superuser and SET ROLE to it.
+#   erns_app    LOGIN. The role every runtime query uses.
+#
+# The separation is required by NFR-SEC-015 and SECURITY-ARCHITECTURE.md section 9.2, and is what
+# test/audit-permission.test.ts verifies. A single-connection setup would make that test vacuous,
+# because the owner can always UPDATE a table it owns.
+#
+# The credentials below are local development values for a container bound to localhost. They are
+# deliberately committed so that `docker compose up -d` works on a fresh clone, and they grant access
+# to nothing outside this container. No credential for any shared or production environment may be
+# written here; see PB-ENG-12-SECRETS-CONFIGURATION.md.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: erns-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: erns
+      POSTGRES_USER: postgres
+      # Local development only. This value is intentionally not a secret.
+      POSTGRES_PASSWORD: localdev_only
+      # Deterministic collation so ordering is stable across host platforms.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # Bound to localhost, never 0.0.0.0. PB-ENG-12 and PB-ENG-15.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - erns-pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init/01-roles.sql:/docker-entrypoint-initdb.d/01-roles.sql:ro
+    healthcheck:
+      # The integration tests wait for this. `pg_isready` alone succeeds before the init scripts run,
+      # so the check also asserts the roles exist.
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d erns && psql -U postgres -d erns -tAc \"SELECT 1 FROM pg_roles WHERE rolname='erns_app'\" | grep -q 1",
+        ]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    command:
+      # Checksums are recorded per migration, so silent data corruption is detectable. Log any
+      # statement that takes unusually long.
+      - "postgres"
+      - "-c"
+      - "log_statement=none"
+      - "-c"
+      - "log_min_duration_statement=1000"
+
+volumes:
+  erns-pgdata:
+    name: erns-pgdata

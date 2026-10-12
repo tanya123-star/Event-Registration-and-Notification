@@ -1,0 +1,40 @@
+# PB-ENG-03 section 1.1 minimum, per PB-ENG-12 section 7
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Dependency directories (reproducible from the manifest)
+node_modules/
+.pnpm-store/
+
+# Build output (reproducible from source)
+dist/
+build/
+.next/
+
+# Next.js generates this file and rewrites it on every `next dev` / `next build` / `next typegen`.
+# The Next.js docs are explicit that its contents are an implementation detail, that it must not be
+# edited by hand, and that it belongs in .gitignore rather than in version control.
+next-env.d.ts
+out/
+*.tsbuildinfo
+
+# Test output and coverage reports
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Local database files
+*.db
+pgdata/
+postgres-data/
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,45 @@
+{
+  "name": "erns",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Event Registration and Notification System",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0 <25.0.0"
+  },
+  "scripts": {
+    "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:unit": "vitest run test/lifecycle.test.ts test/email-state.test.ts test/registration-validation.test.ts test/registration-reference.test.ts test/event-validation.test.ts test/api-responses.test.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:migrate": "pnpm build && node dist/db/cli.js",
+    "db:rollback": "pnpm build && node dist/db/cli.js --rollback",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "dev": "next dev",
+    "build:next": "next build",
+    "typecheck:next": "tsc -p tsconfig.next.json --noEmit"
+  },
+  "dependencies": {
+    "next": "15.5.27",
+    "pg": "8.16.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.36.0",
+    "@types/node": "^24.19.1",
+    "@types/pg": "^8.23.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.36.0",
+    "globals": "16.4.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.44.0",
+    "vitest": "3.2.4"
+  }
+}

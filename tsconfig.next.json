@@ -1,0 +1,68 @@
+{
+  "//": [
+    "ERNS Next.js TypeScript configuration — Stage 1.",
+    "",
+    "This file exists so that Next.js NEVER reads or rewrites tsconfig.json. tsconfig.json is",
+    "load-bearing for four working commands:",
+    "",
+    "    build        = tsc -p tsconfig.json          emits dist/",
+    "    typecheck    = tsc -p tsconfig.json --noEmit",
+    "    db:migrate   = pnpm build && node dist/db/cli.js",
+    "    db:rollback  = pnpm build && node dist/db/cli.js --rollback",
+    "",
+    "and src/db/migrate.ts line 92 resolves the SQL directory relative to dist/db/, so breaking",
+    "that emit breaks migration execution. Next.js reads this file instead, via",
+    "`typescript.tsconfigPath` in next.config.mts.",
+    "",
+    "tsconfig.json is NOT modified by this file and is NOT modified by Next.js. All the strictness",
+    "that guards the domain, the L4 use cases and the database layer — strict,",
+    "noUncheckedIndexedAccess, exactOptionalPropertyTypes, verbatimModuleSyntax — is inherited from",
+    "there and applies here too.",
+    "",
+    "Verify this file does not weaken the base: `pnpm exec tsc -p tsconfig.next.json --showConfig`",
+    "should still list every strict flag from tsconfig.json."
+  ],
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Next.js requires this. tsconfig.json has no JSX because nothing under src/ was .tsx.
+    "jsx": "preserve",
+    // tsconfig.json sets `"types": ["node"]`, which is an explicit allowlist, not an addition.
+    // .tsx would have no React types without these. Next.js needs node as well.
+    "types": [
+      "node",
+      "react"
+    ],
+    // INHERITED FROM tsconfig.json AND OVERRIDDEN HERE ON PURPOSE.
+    // tsconfig.json sets rootDir: "src". That is correct for the tsc library build, whose entire
+    // program lives under src/. It is WRONG for this file, whose include list below spans the
+    // repository root: next-env.d.ts and .next/types/**/*.ts are not under src/.
+    //
+    // Left inherited, those two entries make tsc report TS6059 "File ... is not under 'rootDir'" for
+    // every generated route type. Root is the widest correct scope here because this file only ever
+    // type-checks; it never emits. The real emit contract stays untouched in tsconfig.json.
+    "rootDir": ".",
+    // tsc must not write .next/types or anywhere else. Next.js owns all emit through SWC; this
+    // config exists solely for type checking, so noEmit makes that explicit and prevents a stray
+    // `tsc -p tsconfig.next.json` from fighting `next build` over the same paths.
+    "noEmit": true,
+    "allowJs": true,
+    "incremental": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

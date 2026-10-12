@@ -1,0 +1,8 @@
+# pnpm settings for this single-package repository. There are no workspace globs and
+# no second package: PB-ENG-03:68 requires one repository, not a monorepo.
+#
+# esbuild is required by vitest and ships a postinstall that places its platform
+# binary. The approval is explicit and narrow. Per PB-ENG-09 section 5, no exception
+# exists for disabling a check, so this stays committed rather than a local override.
+allowBuilds:
+  esbuild: true
