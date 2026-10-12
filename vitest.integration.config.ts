@@ -39,6 +39,7 @@ export default defineConfig({
       "test/registration-reads.test.ts",
       "test/api-operations.test.ts",
       "test/registration-open.test.ts",
+      "test/session-identity.test.ts",
     ],
     // Ordered, because test/concurrency.test.ts and test/capacity-concurrency.test.ts both
     // demonstrate CON-04 from different angles: one via hand-rolled SQL to show what SERIALIZABLE can
