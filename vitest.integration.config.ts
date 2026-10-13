@@ -1,17 +1,9 @@
 /**
  * Vitest configuration for the real-PostgreSQL integration suites.
  *
- * Separate from vitest.config.ts for one reason: FILE PARALLELISM IS DISABLED.
- *
- * schema.test.ts, audit-permission.test.ts, concurrency.test.ts and migration.test.ts all call
- * `truncateAll()` in `beforeEach`. Vitest runs test FILES in parallel worker processes by default, so
- * with parallelism on, one file's `TRUNCATE` lands in the middle of another file's test. The symptom is
- * a row count of 0 where 1 was expected — a failure caused by the harness, not by the code under test,
- * and one that would make a real regression indistinguishable from a race.
- *
- * Within a file, tests still run sequentially, and the concurrency tests open their own dedicated
- * connections, so CON-01 and CON-02 continue to exercise genuine parallel database sessions. Disabling
- * file parallelism removes inter-file interference without weakening the concurrency coverage.
+ * FILE PARALLELISM IS DISABLED here and in vitest.config.ts — both configs
+ * run test files serially. See vitest.config.ts for the shared rationale;
+ * not repeated here to avoid drift.
  *
  * Migrations are additionally guarded by a PostgreSQL advisory lock in test/db-harness.ts, so the
  * serialisation holds even if this file is later run alongside another project.
