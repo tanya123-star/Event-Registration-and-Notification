@@ -170,6 +170,11 @@ export async function cancelRegistration(
 
       // STEP 6. AUD-13, in the same transaction: FAIL-05 forbids a state change whose audit entry
       // fails, and the transaction is what makes that atomic.
+      // TODO(#6): emit the IMPORTANT notice to the Student here once the
+      // notification centre lands. Schemas 0001–0006 hold no
+      // Notification/Acknowledgement table, so cancellation today records
+      // reason + audit only; the Student sees the reason via
+      // listUserRegistrations.
       await appendAuditRow(client, {
         actorUserId: input.requestedByUserId,
         action: ACTION_REGISTRATION_CANCELLED,

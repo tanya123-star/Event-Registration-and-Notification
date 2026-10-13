@@ -29,6 +29,7 @@
  * REQUIRES POSTGRESQL. Skipped explicitly when the URL variables are unset.
  */
 
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Pool } from "pg";
 
@@ -252,6 +253,10 @@ describe.skipIf(!configured)("registration completion flows, real PostgreSQL", (
     });
   });
 
+  // TODO(#6) — issue #5 also requires an IMPORTANT notice to the Student on
+  // officer cancellation. The officer's reason + AUD-13 audit are proved
+  // below; the notice dispatch will be wired when #6 (notification centre)
+  // lands, which owns the Notification/Acknowledgement tables.
   describe("cancelled Registration stays visible to the Student with its reason (REG-25)", () => {
     it("lists the CANCELLED row with its cancellation reason", async () => {
       const userId = await seedUser(ownerPool);
@@ -303,6 +308,62 @@ describe.skipIf(!configured)("registration completion flows, real PostgreSQL", (
       const rows = await listUserRegistrations(appPool, userId);
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({ status: "CANCELLED", cancellationReason: "Venue section closed" });
+    });
+
+    it("documents the deferred IMPORTANT notice: officer reason + audit today, notice wired when #6 lands", async () => {
+      // Issue #5 requires an officer cancellation to carry the reason plus an
+      // IMPORTANT notice to the Student. The notice cannot exist yet: schemas
+      // 0001–0006 hold no Notification/Acknowledgement table (blocked by #6,
+      // notification centre). What exists today is the reason (visible to the
+      // Student) and the AUD-13 audit row — pinned here so a green suite does
+      // not read as done.
+      const userId = await seedUser(ownerPool);
+      const officerId = await seedUser(ownerPool);
+      const eventId = await seedEvent(ownerPool, { capacity: 10 });
+
+      const registered = await registerParticipant(
+        appPool,
+        { userId, eventId, source: "SELF" },
+        eligible,
+      );
+      expect(registered.ok).toBe(true);
+      if (!registered.ok) {
+        throw new Error("expected success");
+      }
+      const cancelled = await cancelRegistration(appPool, {
+        registrationId: registered.registrationId,
+        requestedByUserId: officerId,
+        reason: "Venue section closed",
+      });
+      expect(cancelled.ok).toBe(true);
+      if (!cancelled.ok) {
+        throw new Error("expected cancellation");
+      }
+      // The L4 seam dispatches no notice today: the outcome carries no
+      // notification surface. When #6 wires the notice, this pin must move
+      // with it.
+      expect(cancelled).not.toHaveProperty("notificationId");
+
+      const rows = await listUserRegistrations(appPool, userId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ status: "CANCELLED", cancellationReason: "Venue section closed" });
+
+      const { rows: audit } = await appPool.query<{ reason: string | null }>(
+        `SELECT reason FROM erns.audit_log
+          WHERE action = 'AUD-13' AND entity_id = $1::text`,
+        [registered.registrationId],
+      );
+      expect(audit[0]?.reason).toBe("Venue section closed");
+
+      // Tripwire: the deferral must stay explicitly marked at the L4 cancel
+      // seam and at this describe block until #6 wires the notice.
+      const l4Source = readFileSync(
+        new URL("../src/l4/cancel-registration.ts", import.meta.url),
+        "utf8",
+      );
+      expect(l4Source).toContain("TODO(#6)");
+      const selfSource = readFileSync(new URL(import.meta.url), "utf8");
+      expect(selfSource).toContain("TODO(#6)");
     });
   });
 });
