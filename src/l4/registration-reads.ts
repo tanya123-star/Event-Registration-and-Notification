@@ -95,9 +95,10 @@ export async function listPublishedEvents(pool: Pool): Promise<readonly Publishe
  * MVP T3, issue #4. The StudentProfile is read on the same connection before
  * filtering, and the pure audience evaluator judges each Event. A Student with
  * no profile sees every published Event (transitional fallback while
- * provisioning completes — see `registerParticipant`); every provisioned
- * Student is filtered to their audience. The returned rows carry no contact
- * detail, per ADR-0001 minimum-necessary exposure.
+ * provisioning completes — see `registerParticipant`; removed by issue #9,
+ * MVP T8: Administrator CSV student import, the only Student-account creation
+ * path); every provisioned Student is filtered to their audience. The returned
+ * rows carry no contact detail, per ADR-0001 minimum-necessary exposure.
  */
 export async function listPublishedEventsForStudent(
   pool: Pool,

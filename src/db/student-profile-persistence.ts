@@ -28,7 +28,9 @@ export interface StudentProfileRow {
  *
  * Null when the Student has no profile. A missing profile is not an error
  * here; the L4 caller decides what it means (transitional fallback while
- * provisioning completes — see `src/l4/register-participant.ts`).
+ * provisioning completes — see `src/l4/register-participant.ts`; removed by
+ * issue #9, MVP T8: Administrator CSV student import, which provisions a
+ * profile for every Student account).
  */
 export async function readStudentProfile(
   client: PoolClient,

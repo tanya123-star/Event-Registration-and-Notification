@@ -61,7 +61,10 @@ import type {
  * the `is_eligible` mark, FR-REG-011/FR-REG-012) is authoritative: a caller
  * passing true defers to storage, and a caller passing false can only refuse,
  * never admit. Pre-T3 callers without profiles keep their meaning because a
- * missing profile reads as storage-eligible (transitional fallback).
+ * missing profile reads as storage-eligible (transitional fallback, removed by
+ * issue #9 — MVP T8: Administrator CSV student import, the only
+ * Student-account creation path — once every Student account carries a
+ * profile).
  */
 export interface RegisterParticipantFacts {
   readonly authenticated: boolean;
@@ -150,7 +153,9 @@ export async function registerParticipant(
         // between the check and the INSERT. The pure evaluator judges; this code
         // only gathers. A missing profile reads as storage-eligible so pre-T3
         // callers without profiles keep their meaning; every provisioned Student
-        // carries a profile and is judged on it.
+        // carries a profile and is judged on it. This transitional fallback is
+        // removed by issue #9 (MVP T8: Administrator CSV student import), after
+        // which provisioning gives every Student account a profile.
         const profile = await readStudentProfile(client, input.userId);
         const storageEligible =
           profile === null

@@ -16,7 +16,8 @@
  *   - registration source is forced to SELF: officer manual registration (FR-REG-035) needs the
  *     officer role, which needs the session layer.
  *   - the event list is audience-filtered per StudentProfile; a caller with no
- *     profile sees every published Event (transitional fallback).
+ *     profile sees every published Event (transitional fallback, removed by
+ *     issue #9 — MVP T8: Administrator CSV student import).
  */
 
 import { SerializationExhaustedError } from "../../../db/client.js";

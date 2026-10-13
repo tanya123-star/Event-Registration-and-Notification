@@ -238,6 +238,44 @@ describe.skipIf(!configured)("Student profile, audience and eligibility, real Po
     }
   });
 
+  it("A Student with no profile keeps the transitional fallback at registration: storage reads as eligible (issue #4 review)", async () => {
+    // Pinning test: the no-profile fallback is fail-OPEN by design (see the
+    // STEP A2 comment in register-participant.ts). A missing profile reads as
+    // storage-eligible, so even a restricted audience does not refuse the
+    // attempt. The fallback is transitional and is removed by issue #9 (MVP T8:
+    // Administrator CSV student import), the only Student-account creation path.
+    const userId = await seedUser(ownerPool);
+    const eventId = await seedEvent(ownerPool, { capacity: 10 });
+    await setEventAudience(eventId, { programme: "BSIT" });
+
+    const outcome = await registerParticipant(
+      appPool,
+      { userId, eventId, source: "SELF" },
+      eligibleFacts,
+    );
+
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("A Student with no profile keeps the transitional fallback at browsing: every published Event is visible (issue #4 review)", async () => {
+    // Pinning test: the browsing-side counterpart of the same transitional
+    // fallback in listPublishedEventsForStudent. A Student with no profile
+    // sees every published Event, including restricted-audience ones.
+    const userId = await seedUser(ownerPool);
+    const open = await seedEvent(ownerPool, { capacity: 10, status: "PUBLISHED" });
+    const restricted = await seedEvent(ownerPool, {
+      capacity: 10,
+      status: "PUBLISHED",
+    });
+    await setEventAudience(restricted, { programme: "BSIT" });
+
+    const rows = await listPublishedEventsForStudent(appPool, userId);
+
+    expect(rows.map((row) => row.eventId).sort()).toEqual(
+      [open, restricted].sort(),
+    );
+  });
+
   it("Programme change after registering retains the original snapshot in reports (FR-REG-017)", async () => {
     const userId = await seedUser(ownerPool);
     await seedStudentProfile(userId, { programme: "BSIT", yearLevel: 1 });
