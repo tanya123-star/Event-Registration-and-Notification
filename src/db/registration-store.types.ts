@@ -263,6 +263,12 @@ export interface UserRegistrationRow {
   readonly registeredAt: Date;
   readonly confirmationReference: string;
   readonly cancelledAt: Date | null;
+  /**
+   * REG-25. The stored cancellation reason, so a CANCELLED Registration stays
+   * visible to the Student with its reason. Null while REGISTERED. The
+   * Student's own record only — never another student's — per ADR-0001.
+   */
+  readonly cancellationReason: string | null;
 }
 
 /** FR-REG-001, FR-REG-002, FR-EVT-014. Published events with live counts. */

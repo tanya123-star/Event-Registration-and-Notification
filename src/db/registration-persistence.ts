@@ -554,6 +554,7 @@ export async function listUserRegistrationRows(
     registeredAt: Date;
     confirmationReference: string;
     cancelledAt: Date | null;
+    cancellationReason: string | null;
   }[]
 > {
   const { rows } = await client.query<{
@@ -565,9 +566,11 @@ export async function listUserRegistrationRows(
     registered_at: Date;
     confirmation_reference: string;
     cancelled_at: Date | null;
+    cancellation_reason: string | null;
   }>(
     `SELECT r.registration_id, r.event_id, e.title AS event_title, e.status AS event_status,
-            r.status, r.registered_at, r.confirmation_reference, r.cancelled_at
+            r.status, r.registered_at, r.confirmation_reference, r.cancelled_at,
+            r.cancellation_reason
        FROM erns.registration r
        JOIN erns.event e ON e.event_id = r.event_id
       WHERE r.user_id = $1
@@ -583,6 +586,7 @@ export async function listUserRegistrationRows(
     registeredAt: row.registered_at,
     confirmationReference: row.confirmation_reference,
     cancelledAt: row.cancelled_at,
+    cancellationReason: row.cancellation_reason,
   }));
 }
 

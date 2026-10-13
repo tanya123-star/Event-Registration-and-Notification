@@ -31,6 +31,7 @@ export default defineConfig({
       "test/registration-reads.test.ts",
       "test/api-operations.test.ts",
       "test/registration-open.test.ts",
+      "test/registration-completion.test.ts",
       "test/session-identity.test.ts",
     ],
     // Ordered, because test/concurrency.test.ts and test/capacity-concurrency.test.ts both

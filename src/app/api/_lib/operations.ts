@@ -14,13 +14,18 @@
  *   - required registration fields are empty: no per-event field definitions exist, so nothing is
  *     "missing". FR-REG-015's machinery (the missingRequiredFields fact) is wired, not triggered.
  *   - registration source is forced to SELF: officer manual registration (FR-REG-035) needs the
- *     officer role, which needs the session layer.
+ *     officer role, which needs the session layer. A client-supplied source would be a
+ *     trusted-role claim.
+ *   - SD-2 is enforced at the registration endpoint (USER-ROLES.md section 5, FR-REG-036):
+ *     an actor holding ATTENDANCE_STAFF or APPROVER is refused before any use case runs,
+ *     even when they also hold the Student role.
  *   - the event list is audience-filtered per StudentProfile; a caller with no
  *     profile sees every published Event (transitional fallback, removed by
  *     issue #9 — MVP T8: Administrator CSV student import).
  */
 
 import { SerializationExhaustedError } from "../../../db/client.js";
+import type { Role } from "../../../domain/lifecycle.js";
 import { createEvent } from "../../../l4/create-event.js";
 import { reduceEventCapacity } from "../../../l4/capacity.js";
 import { cancelRegistration } from "../../../l4/cancel-registration.js";
@@ -47,6 +52,34 @@ import {
 export interface AuthenticatedActor {
   readonly userId: string;
   readonly accountStatus: "ACTIVE" | "SUSPENDED" | null;
+  /**
+   * Roles read from storage at request time (identity.ts). Absent only for
+   * callers that predate the SD-2 gate; such callers are treated as holding no
+   * refused role. The route seam passes the resolved identity straight through,
+   * so production callers always carry this.
+   */
+  readonly roles?: readonly Role[];
+}
+
+/** Roles that may never hold a Registration (USER-ROLES.md SD-2, FR-REG-036). */
+const REGISTRATION_REFUSED_ROLES: readonly Role[] = ["ATTENDANCE_STAFF", "APPROVER"];
+
+/** SD-2: registration endpoints reject Attendance Staff and Approver holders. */
+function registrationRoleResponse(
+  actor: AuthenticatedActor,
+  requestId: string | null,
+): Response | null {
+  const held = actor.roles ?? [];
+  if (held.some((role) => REGISTRATION_REFUSED_ROLES.includes(role))) {
+    return errorResponse(
+      403,
+      "ROLE_NOT_PERMITTED",
+      "This role may not register for events",
+      requestId,
+      "SD-2, FR-REG-036",
+    );
+  }
+  return null;
 }
 
 const UUID_PATTERN =
@@ -247,6 +280,10 @@ export async function registerOperation(
   eventId: string,
 ): Promise<Response> {
   const requestId = requestIdOf(request);
+  const roleRefused = registrationRoleResponse(actor, requestId);
+  if (roleRefused !== null) {
+    return roleRefused;
+  }
   if (!isUuid(eventId)) {
     return invalidIdResponse("EVENT", requestId);
   }
