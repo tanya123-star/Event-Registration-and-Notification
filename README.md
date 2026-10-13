@@ -23,6 +23,14 @@ milestone will have to meet, and the unresolved choice between framework major v
 Node.js 24 (24.21.0 installed) and pnpm 11. PostgreSQL 17, provided by Docker Compose for local
 development.
 
+## Setup
+
+Install the agent skills with:
+
+```sh
+npx skills@latest add mattpocock/skills -a opencode
+```
+
 ## Commands
 
 | Command | Purpose |
