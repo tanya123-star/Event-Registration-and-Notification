@@ -37,6 +37,12 @@ export interface EventRegistrationFacts {
   readonly registeredCount: number;
   /** The caller's own active registration, if any. FR-REG-014. */
   readonly existingRegistrationStatus: "REGISTERED" | "CANCELLED" | null;
+  /**
+   * The audience definition as stored on the Event (MVP T3, issue #4).
+   * Null means open to every Student. Read in the same statement so the
+   * eligibility judgement observes the same snapshot as the capacity count.
+   */
+  readonly targetAudience: Record<string, unknown> | null;
 }
 
 const EVENT_FACTS_QUERY = `
@@ -46,6 +52,7 @@ const EVENT_FACTS_QUERY = `
     e.registration_open,
     e.registration_start,
     e.registration_deadline,
+    e.target_audience,
     (SELECT count(*)::int
        FROM erns.registration r
       WHERE r.event_id = e.event_id AND r.status = 'REGISTERED') AS registered_count,
@@ -77,6 +84,7 @@ export async function readEventRegistrationFacts(
     registration_open: boolean;
     registration_start: Date | null;
     registration_deadline: Date | null;
+    target_audience: Record<string, unknown> | null;
     registered_count: number;
     existing_status: "REGISTERED" | "CANCELLED" | null;
   }>(EVENT_FACTS_QUERY, [eventId, userId]);
@@ -93,6 +101,7 @@ export async function readEventRegistrationFacts(
     registrationOpen: row.registration_open,
     registrationStart: row.registration_start,
     registrationDeadline: row.registration_deadline,
+    targetAudience: row.target_audience,
     registeredCount: row.registered_count,
     existingRegistrationStatus: row.existing_status,
   };
@@ -583,8 +592,7 @@ export async function listUserRegistrationRows(
  * Audience filtering is NOT applied: `target_audience` is an unspecified JSONB document and the
  * role model that would scope visibility (FR-EVT-013) belongs to the session layer. The caller —
  * today a handler that has verified the session — decides who may see this list.
- */
-export async function listPublishedEventRows(
+ */export async function listPublishedEventRows(
   client: PoolClient,
 ): Promise<
   readonly {
@@ -628,5 +636,62 @@ export async function listPublishedEventRows(
     registrationDeadline: row.registration_deadline,
     capacity: row.capacity,
     registeredCount: row.registered_count,
+  }));
+}
+
+/**
+ * List published events with their audience definitions (MVP T3, issue #4).
+ *
+ * Same rows as `listPublishedEventRows`, plus `targetAudience` for the L4
+ * audience filter. A separate function so the unfiltered read keeps its
+ * contract unchanged; the filtered L4 entry point decides who may see what.
+ */
+export async function listPublishedEventRowsWithAudience(
+  client: PoolClient,
+): Promise<
+  readonly {
+    eventId: string;
+    title: string;
+    eventDate: string;
+    venue: string;
+    status: string;
+    registrationOpen: boolean;
+    registrationDeadline: Date | null;
+    capacity: number | null;
+    registeredCount: number;
+    targetAudience: Record<string, unknown> | null;
+  }[]
+> {
+  const { rows } = await client.query<{
+    event_id: string;
+    title: string;
+    event_date: string;
+    venue: string;
+    status: string;
+    registration_open: boolean;
+    registration_deadline: Date | null;
+    capacity: number | null;
+    registered_count: number;
+    target_audience: Record<string, unknown> | null;
+  }>(
+    `SELECT e.event_id, e.title, e.event_date::text AS event_date, e.venue, e.status,
+            e.registration_open, e.registration_deadline, e.capacity, e.target_audience,
+            (SELECT count(*)::int FROM erns.registration r
+              WHERE r.event_id = e.event_id AND r.status = 'REGISTERED') AS registered_count
+       FROM erns.event e
+      WHERE e.status = 'PUBLISHED'
+      ORDER BY e.event_date ASC, e.event_id ASC`,
+  );
+  return rows.map((row) => ({
+    eventId: row.event_id,
+    title: row.title,
+    eventDate: row.event_date,
+    venue: row.venue,
+    status: row.status,
+    registrationOpen: row.registration_open,
+    registrationDeadline: row.registration_deadline,
+    capacity: row.capacity,
+    registeredCount: row.registered_count,
+    targetAudience: row.target_audience,
   }));
 }

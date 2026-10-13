@@ -67,7 +67,7 @@ describe.skipIf(!configured)("migration runner, real PostgreSQL", () => {
 
   it("applies nothing when the directory contains only already-applied files", async () => {
     const available = await sqlFilesInSchemaDirectory();
-    // Updated visibly for 0005 (MVP T1 session/identity stores, issue #2), per the
+    // Updated visibly for 0006 (MVP T3 StudentProfile, issue #4), per the
     // TESTING-STRATEGY.md rule that a migration touching asserted invariants updates tests first.
     expect(available).toEqual([
       "0001_initial.sql",
@@ -75,6 +75,7 @@ describe.skipIf(!configured)("migration runner, real PostgreSQL", () => {
       "0003_cancellation_constraint.sql",
       "0004_event_modified_by.sql",
       "0005_session_identity.sql",
+      "0006_student_profile.sql",
     ]);
   });
 

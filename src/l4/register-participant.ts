@@ -32,6 +32,7 @@ import {
   validateRegistrationAttempt,
   type ValidationFailure,
 } from "../domain/registration-validation.js";
+import { isStudentInAudience } from "../domain/audience.js";
 import { isSerializationFailure, withTransaction } from "../db/client.js";
 import { newConfirmationReference } from "../db/identifiers.js";
 import {
@@ -39,6 +40,7 @@ import {
   insertRegistrationRow,
   readEventRegistrationFacts,
 } from "../db/registration-persistence.js";
+import { readStudentProfile } from "../db/student-profile-persistence.js";
 import type {
   RegisterOutcome,
   RegisterParticipantInput,
@@ -48,14 +50,18 @@ import type {
 /**
  * Facts the caller already holds and that the store cannot derive.
  *
- * `authenticated`, `accountStatus` and `eligible` are inputs to the validator rather than storage
- * reads. `accountStatus` IS a column on app_user, but reading it here would mean the store deciding
- * what a session means, which L3 explicitly may not do and L2 may not do either. The caller in a later
- * milestone supplies it from the authenticated identity.
+ * `authenticated` and `accountStatus` are inputs to the validator rather than
+ * storage reads. `accountStatus` IS a column on app_user, but reading it here
+ * would mean the store deciding what a session means, which L3 explicitly may
+ * not do and L2 may not do either. The caller supplies it from the
+ * authenticated identity.
  *
- * `eligible` covers FR-REG-011 (target audience) and FR-REG-012 (the ineligibility mark). Neither is
- * derivable: target_audience is an unspecified JSONB document and the ineligibility mark has no column,
- * because StudentProfile does not exist while OQ-07 is open.
+ * `eligible` is a fail-safe caller flag, ANDed with the storage evaluation
+ * below. The storage signal (StudentProfile against the Event audience plus
+ * the `is_eligible` mark, FR-REG-011/FR-REG-012) is authoritative: a caller
+ * passing true defers to storage, and a caller passing false can only refuse,
+ * never admit. Pre-T3 callers without profiles keep their meaning because a
+ * missing profile reads as storage-eligible (transitional fallback).
  */
 export interface RegisterParticipantFacts {
   readonly authenticated: boolean;
@@ -138,6 +144,30 @@ export async function registerParticipant(
           };
         }
 
+        // STEP A2. Eligibility from storage (MVP T3, issue #4). The StudentProfile
+        // and the Event audience are read inside the same SERIALIZABLE transaction
+        // as the write, so a concurrent profile or audience change cannot slip
+        // between the check and the INSERT. The pure evaluator judges; this code
+        // only gathers. A missing profile reads as storage-eligible so pre-T3
+        // callers without profiles keep their meaning; every provisioned Student
+        // carries a profile and is judged on it.
+        const profile = await readStudentProfile(client, input.userId);
+        const storageEligible =
+          profile === null
+            ? true
+            : isStudentInAudience(
+                {
+                  programme: profile.programme,
+                  yearLevel: profile.yearLevel,
+                  organizationId: profile.organizationId,
+                  isEligible: profile.isEligible,
+                },
+                (eventFacts.targetAudience ?? null) as Parameters<
+                  typeof isStudentInAudience
+                >[1],
+              );
+        const eligible = facts.eligible && storageEligible;
+
         // STEP B. The nine steps, in the documented order, with no rule of its own.
         const outcome = validateRegistrationAttempt({
           authenticated: facts.authenticated,
@@ -149,7 +179,7 @@ export async function registerParticipant(
           registrationStart: eventFacts.registrationStart,
           registrationDeadline: eventFacts.registrationDeadline,
           now,
-          eligible: facts.eligible,
+          eligible,
           registeredCount: eventFacts.registeredCount,
           capacity: eventFacts.capacity,
           existingActiveRegistration: eventFacts.existingRegistrationStatus === "REGISTERED",
@@ -162,6 +192,17 @@ export async function registerParticipant(
         }
 
         // STEP C. Write. FR-REG-016 is the partial unique index's job, not this code's.
+        // FR-REG-017 snapshot: an explicit caller context is stored as given (pre-T3
+        // callers); otherwise the profile just read is snapshotted, so a later
+        // programme change cannot rewrite history (DATA-MODEL.md line 403).
+        const snapshotFromProfile =
+          profile === null
+            ? null
+            : {
+                programme: profile.programme,
+                year_level: profile.yearLevel,
+                organization_id: profile.organizationId,
+              };
         const confirmationReference = newConfirmationReference();
         let registrationId: string;
         let registeredAt: Date;
@@ -173,7 +214,7 @@ export async function registerParticipant(
             confirmationReference,
             studentContext:
               input.studentContext === undefined || input.studentContext === null
-                ? null
+                ? snapshotFromProfile
                 : {
                     // FR-REG-017 names three snapshot fields. The key names are the store's own, not
                     // the caller's, so a caller using camelCase cannot silently produce a snapshot that

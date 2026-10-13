@@ -12,12 +12,15 @@
 
 import type { Pool } from "pg";
 
+import { isStudentInAudience } from "../domain/audience.js";
 import {
   listEventParticipantRows,
   listPublishedEventRows,
+  listPublishedEventRowsWithAudience,
   listUserRegistrationRows,
   readEventRegistrationSummary,
 } from "../db/registration-persistence.js";
+import { readStudentProfile } from "../db/student-profile-persistence.js";
 import type {
   EventRegistrationSummary,
   ParticipantRow,
@@ -81,6 +84,90 @@ export async function listPublishedEvents(pool: Pool): Promise<readonly Publishe
   const client = await pool.connect();
   try {
     return await listPublishedEventRows(client);
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * FR-REG-001, FR-REG-002, FR-EVT-014, FR-EVT-013 — published Events in the Student audience.
+ *
+ * MVP T3, issue #4. The StudentProfile is read on the same connection before
+ * filtering, and the pure audience evaluator judges each Event. A Student with
+ * no profile sees every published Event (transitional fallback while
+ * provisioning completes — see `registerParticipant`); every provisioned
+ * Student is filtered to their audience. The returned rows carry no contact
+ * detail, per ADR-0001 minimum-necessary exposure.
+ */
+export async function listPublishedEventsForStudent(
+  pool: Pool,
+  userId: string,
+): Promise<readonly PublishedEventRow[]> {
+  const client = await pool.connect();
+  try {
+    const profile = await readStudentProfile(client, userId);
+    const rows = await listPublishedEventRowsWithAudience(client);
+    if (profile === null) {
+      return rows.map(
+        ({
+          eventId,
+          title,
+          eventDate,
+          venue,
+          status,
+          registrationOpen,
+          registrationDeadline,
+          capacity,
+          registeredCount,
+        }) => ({
+          eventId,
+          title,
+          eventDate,
+          venue,
+          status,
+          registrationOpen,
+          registrationDeadline,
+          capacity,
+          registeredCount,
+        }),
+      );
+    }
+    const student = {
+      programme: profile.programme,
+      yearLevel: profile.yearLevel,
+      organizationId: profile.organizationId,
+      isEligible: profile.isEligible,
+    };
+    return rows
+      .filter((row) =>
+        isStudentInAudience(
+          student,
+          (row.targetAudience ?? null) as Parameters<typeof isStudentInAudience>[1],
+        ),
+      )
+      .map(
+        ({
+          eventId,
+          title,
+          eventDate,
+          venue,
+          status,
+          registrationOpen,
+          registrationDeadline,
+          capacity,
+          registeredCount,
+        }) => ({
+          eventId,
+          title,
+          eventDate,
+          venue,
+          status,
+          registrationOpen,
+          registrationDeadline,
+          capacity,
+          registeredCount,
+        }),
+      );
   } finally {
     client.release();
   }

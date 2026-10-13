@@ -8,13 +8,15 @@
  * testable against a real database with no server running and no session to forge.
  *
  * DELIBERATE GAPS, each recorded where it applies rather than hidden:
- *   - eligibility is passed as true: audience evaluation needs StudentProfile, absent while OQ-07
- *     is open. The ELIGIBILITY step therefore cannot fire until a real signal exists.
+ *   - eligibility caller flag is passed as true and ANDed with the storage
+ *     evaluation (StudentProfile against the Event audience plus is_eligible):
+ *     the ELIGIBILITY step now fires on a real signal (MVP T3, issue #4).
  *   - required registration fields are empty: no per-event field definitions exist, so nothing is
  *     "missing". FR-REG-015's machinery (the missingRequiredFields fact) is wired, not triggered.
  *   - registration source is forced to SELF: officer manual registration (FR-REG-035) needs the
  *     officer role, which needs the session layer.
- *   - audience filtering on the event list is not applied (see the L2 function).
+ *   - the event list is audience-filtered per StudentProfile; a caller with no
+ *     profile sees every published Event (transitional fallback).
  */
 
 import { SerializationExhaustedError } from "../../../db/client.js";
@@ -26,7 +28,7 @@ import { setRegistrationOpen } from "../../../l4/registration-open.js";
 import {
   getEventRegistrationSummary,
   listEventParticipants,
-  listPublishedEvents,
+  listPublishedEventsForStudent,
 } from "../../../l4/registration-reads.js";
 import {
   cancelRefusalStatus,
@@ -111,9 +113,9 @@ function failureResponse(error: unknown, requestId: string | null): Response {
   return internalError(requestId);
 }
 
-/** GET /api/v1/events — published events with live counts. */
+/** GET /api/v1/events — published Events in the Student audience with live counts. */
 export async function listEventsOperation(
-  pool: Parameters<typeof listPublishedEvents>[0],
+  pool: Parameters<typeof listPublishedEventsForStudent>[0],
   actor: AuthenticatedActor,
   request: Request,
 ): Promise<Response> {
@@ -123,7 +125,7 @@ export async function listEventsOperation(
     return suspended;
   }
   try {
-    const events = await listPublishedEvents(pool);
+    const events = await listPublishedEventsForStudent(pool, actor.userId);
     return Response.json({ events }, { status: 200 });
   } catch (error) {
     return failureResponse(error, requestId);
@@ -277,9 +279,9 @@ export async function registerOperation(
       {
         authenticated: true,
         accountStatus: actor.accountStatus,
-        // Audience evaluation needs StudentProfile, absent while OQ-07 is open. Passing a literal
-        // true is recorded here rather than hidden: the ELIGIBILITY step cannot fire until a real
-        // signal exists, and no test may assert otherwise.
+        // Fail-safe true: the L4 use case ANDs this with the storage evaluation
+        // (StudentProfile against the Event audience plus is_eligible), so the
+        // ELIGIBILITY step fires on a real signal (MVP T3, issue #4).
         eligible: true,
         missingRequiredFields: [],
       },

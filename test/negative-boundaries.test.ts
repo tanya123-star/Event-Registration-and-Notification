@@ -439,8 +439,8 @@ describe.skipIf(!configured)("NEG boundary conditions, real PostgreSQL", () => {
           WHERE table_schema = 'erns' ORDER BY table_name`,
       );
       const names = rows.map((r) => r.table_name);
-      // Updated visibly for 0005 (MVP T1 session/identity stores, issue #2): session and
-      // user_role are the only additions. Attendance and notification stay absent.
+      // Updated visibly for 0006 (MVP T3 StudentProfile, issue #4): student_profile
+      // is the only addition. Attendance and notification stay absent.
       expect(names).toEqual([
         "app_user",
         "audit_log",
@@ -448,6 +448,7 @@ describe.skipIf(!configured)("NEG boundary conditions, real PostgreSQL", () => {
         "registration",
         "schema_migrations",
         "session",
+        "student_profile",
         "user_role",
       ]);
       expect(names).not.toContain("attendance");
