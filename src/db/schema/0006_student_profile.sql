@@ -16,9 +16,14 @@
 -- column: OQ-07 leaves its existence and uniqueness undecided, and inventing it
 -- would reject an identity the requirement allows. No Role invariant in the
 -- schema: "Student role MUST have a profile / profile MUST NOT exist without
--- the Student role" (DATA-MODEL.md lines 158-160) is an application rule
--- checked where roles are read, not a foreign key, because Role itself is the
--- user_role store from 0005 rather than a parent row.
+-- the Student role" (DATA-MODEL.md lines 158-160) is an application rule,
+-- not a foreign key, because Role itself is the user_role store from 0005
+-- rather than a parent row. It is currently UNENFORCED: the identity layer
+-- (issue #2) reads roles and does not check for a StudentProfile, and no
+-- other code does. Issue #9 (MVP T8: Administrator CSV student import), the
+-- only Student-account creation path, provisions a profile for every imported
+-- Student; a runtime check where roles are read has no ticket yet and is
+-- flagged for the human to file.
 --
 -- ADDITIVE AND LEAST-PRIVILEGE. No existing table is altered. The application
 -- role receives SELECT, INSERT, UPDATE and DELETE on this table only — the same
