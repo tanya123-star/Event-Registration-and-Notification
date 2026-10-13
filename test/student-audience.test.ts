@@ -353,6 +353,33 @@ describe.skipIf(!configured)("Student profile, audience and eligibility, real Po
     }
   });
 
+  it("an ineligible Student sees no published Events, including open-audience ones (issue #4 review)", async () => {
+    // Pinning test for current behaviour, flagged as a design question
+    // (see the isStudentInAudience doc in src/domain/audience.ts): the
+    // issue text does not say whether open-audience Events should remain
+    // visible to an ineligible Student with Registration refused. The pure
+    // evaluator refuses an ineligible Student against every audience, so
+    // browsing shows nothing at all.
+    const userId = await seedUser(ownerPool);
+    await seedStudentProfile(userId, { programme: "BSIT", isEligible: false });
+    const openAudience = await seedEvent(ownerPool, {
+      capacity: 10,
+      status: "PUBLISHED",
+    });
+    // target_audience left null: open to every Student per FR-NOT-017.
+    const restricted = await seedEvent(ownerPool, {
+      capacity: 10,
+      status: "PUBLISHED",
+    });
+    await setEventAudience(restricted, { programme: "BSIT" });
+
+    const rows = await listPublishedEventsForStudent(appPool, userId);
+
+    const visibleIds = rows.map((row) => row.eventId);
+    expect(visibleIds).not.toContain(openAudience);
+    expect(visibleIds).not.toContain(restricted);
+  });
+
   it("handler cores refuse out-of-audience Registration with ELIGIBILITY over the wire", async () => {
     const userId = await seedUser(ownerPool);
     await seedStudentProfile(userId, { programme: "BSCS" });

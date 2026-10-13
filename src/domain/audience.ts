@@ -64,6 +64,14 @@ function matchesCriterion<T>(actual: T, expected: T | readonly T[] | undefined |
  * `is_eligible` is evaluated first: an ineligible Student is refused even inside
  * the audience (FR-REG-012), and a Student outside the audience is refused even
  * when eligible (FR-REG-011). The source records one step for the pair.
+ *
+ * Consequence, pinned by test and flagged as a design question for the
+ * human (issue #4 review): an ineligible Student is therefore outside
+ * EVERY audience, including the open (null) audience, and so sees no
+ * Events while browsing. Whether open-audience Events should instead
+ * remain visible to an ineligible Student — with Registration refused at
+ * the eligibility step — is undesigned; the issue text does not answer
+ * it, so the invisible behaviour is pinned rather than changed.
  */
 export function isStudentInAudience(
   profile: AudienceStudentProfile,
