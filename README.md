@@ -79,6 +79,31 @@ works. They are not credentials for any shared environment. See
 reason naming the missing variable. A skipped test is never counted as passing, and no report may
 describe such a run as having verified the constraints.
 
+### Running the tests when port 5432 is in use
+
+Do not use `pnpm db:up` in that situation — it binds `127.0.0.1:5432` (see
+`docker-compose.yml`), so it fails when that port is taken. Start a temporary PostgreSQL 17
+container on another free port instead (e.g. `5434` — any free port works, substitute your own),
+mounting the repo's init script so the `erns_owner`/`erns_app` roles are provisioned:
+
+```sh
+docker run -d --rm \
+  -e POSTGRES_DB=erns -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=localdev_only \
+  -p 127.0.0.1:5434:5432 \
+  -v ./docker/postgres-init/01-roles.sql:/docker-entrypoint-initdb.d/01-roles.sql:ro \
+  postgres:17-alpine
+```
+
+Then point both variables at your chosen port, for that command only:
+
+```sh
+ERNS_DATABASE_URL="postgresql://postgres:localdev_only@127.0.0.1:5434/erns" \
+ERNS_APP_URL="postgresql://erns_app:localdev_app_only@127.0.0.1:5434/erns" \
+pnpm test:integration
+```
+
+Running the suite without both variables skips the database tests by design.
+
 ## Migrations
 
 SQL lives in [`src/db/schema/`](src/db/schema) and is applied in filename order.
