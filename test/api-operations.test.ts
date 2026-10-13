@@ -13,6 +13,7 @@
  * internal detail in error bodies.
  */
 
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Pool } from "pg";
 
@@ -139,6 +140,35 @@ describe.skipIf(!configured)("handler cores, real PostgreSQL", () => {
       post("/api/v1/events", { title: 42 }),
     );
     expect(malformed.status).toBe(400);
+  });
+
+  it("a caller with absent roles keeps the transitional SD-2 leniency: admitted, read as holding no refused role", async () => {
+    // Pinning test (issue #5 review): `AuthenticatedActor.roles` is optional
+    // for callers that predate the SD-2 gate, and absent roles are treated as
+    // holding no refused role — fail-OPEN. Deny-by-default was NOT applied
+    // because existing callers rely on the omission (this file's actor helper
+    // passes no roles and registers successfully below). Production identity
+    // (identity.ts) always supplies roles and every route seam passes them
+    // straight through, so only test callers omit them. Making `roles`
+    // required is deferred to issue #10 (REST completion), which finalizes
+    // the handler-core surface once every caller supplies roles from identity.
+    const userId = await seedUser(ownerPool);
+    const eventId = await seedEvent(ownerPool, { capacity: 10 });
+
+    const response = await registerOperation(
+      appPool,
+      { userId, accountStatus: "ACTIVE" },
+      post(`/api/v1/events/${eventId}/registrations`, {}),
+      eventId,
+    );
+    expect(response.status).toBe(201);
+
+    // Tripwire: the leniency must stay explicitly marked until #10 requires roles.
+    const source = readFileSync(
+      new URL("../src/app/api/_lib/operations.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("TODO(#10)");
   });
 
   it("registers (201), then reports the duplicate as 409 with the refusal reason as code", async () => {

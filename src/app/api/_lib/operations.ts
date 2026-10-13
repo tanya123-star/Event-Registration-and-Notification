@@ -55,8 +55,14 @@ export interface AuthenticatedActor {
   /**
    * Roles read from storage at request time (identity.ts). Absent only for
    * callers that predate the SD-2 gate; such callers are treated as holding no
-   * refused role. The route seam passes the resolved identity straight through,
-   * so production callers always carry this.
+   * refused role (fail-open transitional leniency). The route seam passes the
+   * resolved identity straight through, so production callers always carry
+   * this.
+   * TODO(#10): make `roles` required once every caller supplies roles from
+   * identity. Deny-by-default was deferred because existing test callers omit
+   * `roles` (see the absent-roles pin in test/api-operations.test.ts); issue
+   * #10 (REST completion) finalizes the handler-core surface and owns the
+   * tightening.
    */
   readonly roles?: readonly Role[];
 }
