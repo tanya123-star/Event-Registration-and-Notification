@@ -30,7 +30,7 @@ import {
   skipReason,
   truncateAll,
 } from "./db-harness.js";
-import { isStudentInAudience } from "../src/domain/audience.js";
+import { isStudentInAudience, type AudienceDefinition } from "../src/domain/audience.js";
 import { registerParticipant } from "../src/l4/register-participant.js";
 import {
   listEventParticipants,
@@ -89,6 +89,22 @@ describe("audience evaluation, pure domain seam", () => {
     expect(isStudentInAudience({ ...profile, isEligible: false }, { programme: "BSIT" })).toBe(
       false,
     );
+  });
+
+  it("a malformed audience (non-object JSONB) refuses every Student (fail-closed)", () => {
+    // A stored target_audience that is not an object — an array or a
+    // scalar — cannot be interpreted as an audience definition. It must
+    // refuse, never admit: a value that cannot be read as a definition
+    // must not silently mean FR-NOT-017's "All students".
+    expect(
+      isStudentInAudience(profile, ["BSIT"] as unknown as AudienceDefinition),
+    ).toBe(false);
+    expect(
+      isStudentInAudience(profile, "BSIT" as unknown as AudienceDefinition),
+    ).toBe(false);
+    expect(
+      isStudentInAudience(profile, 3 as unknown as AudienceDefinition),
+    ).toBe(false);
   });
 });
 
@@ -315,6 +331,26 @@ describe.skipIf(!configured)("Student profile, audience and eligibility, real Po
       year_level: 1,
       organization_id: null,
     });
+  });
+
+  it("a malformed stored audience refuses Registration at the eligibility step (fail-closed)", async () => {
+    const userId = await seedUser(ownerPool);
+    await seedStudentProfile(userId, { programme: "BSIT" });
+    const eventId = await seedEvent(ownerPool, { capacity: 10 });
+    // A JSON array is valid JSONB but not an audience definition.
+    await setEventAudience(eventId, ["BSIT"]);
+
+    const outcome = await registerParticipant(
+      appPool,
+      { userId, eventId, source: "SELF" },
+      eligibleFacts,
+    );
+
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.refusal.reason).toBe("ELIGIBILITY");
+      expect(outcome.refusal.message).toBe("Not eligible for this event");
+    }
   });
 
   it("handler cores refuse out-of-audience Registration with ELIGIBILITY over the wire", async () => {

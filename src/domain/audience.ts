@@ -16,6 +16,10 @@
  * target_audience was an unspecified JSONB document — keep their open meaning
  * rather than silently closing.
  *
+ * A malformed audience — a stored JSONB value that is not an object, such as
+ * an array or a scalar — refuses every Student (fail-closed): a value that
+ * cannot be interpreted as a definition must never read as "All students".
+ *
  * This module is L3 and pure: no I/O, no session, no external imports (enforced by
  * the `no-restricted-imports` rule scoped to `src/domain/**` in eslint.config.mjs).
  */
@@ -71,8 +75,10 @@ export function isStudentInAudience(
   if (audience === null || audience === undefined) {
     return true;
   }
+  // A non-object audience is malformed storage, not an open audience:
+  // refuse (fail-closed) rather than silently admit every Student.
   if (typeof audience !== "object" || Array.isArray(audience)) {
-    return true;
+    return false;
   }
   const yearLevel = audience.year_level ?? audience.yearLevel;
   const organizationId = audience.organization_id ?? audience.organizationId;
