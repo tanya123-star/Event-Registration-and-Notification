@@ -67,7 +67,7 @@ describe.skipIf(!configured)("migration runner, real PostgreSQL", () => {
 
   it("applies nothing when the directory contains only already-applied files", async () => {
     const available = await sqlFilesInSchemaDirectory();
-    // Updated visibly for 0008 (MVP T7 attendance, issue #8), per the
+    // Updated visibly for 0009 (MVP T8 CSV import role grant, issue #9), per the
     // TESTING-STRATEGY.md rule that a migration touching asserted invariants updates tests first.
     expect(available).toEqual([
       "0001_initial.sql",
@@ -78,6 +78,7 @@ describe.skipIf(!configured)("migration runner, real PostgreSQL", () => {
       "0006_student_profile.sql",
       "0007_notification_centre.sql",
       "0008_attendance.sql",
+      "0009_student_import_role_grant.sql",
     ]);
   });
 

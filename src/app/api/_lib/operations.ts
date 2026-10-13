@@ -34,6 +34,7 @@ import { setRegistrationOpen } from "../../../l4/registration-open.js";
 import { recordAttendance } from "../../../l4/record-attendance.js";
 import { recordWalkIn } from "../../../l4/record-walk-in.js";
 import { correctAttendance } from "../../../l4/correct-attendance.js";
+import { importStudents } from "../../../l4/import-students.js";
 import {
   getAttendanceCounts,
   lookupParticipants,
@@ -774,6 +775,51 @@ export async function correctAttendanceOperation(
         present: outcome.present,
         correctedAt: outcome.correctedAt.toISOString(),
       },
+      { status: 200 },
+    );
+  } catch (error) {
+    return failureResponse(error, requestId);
+  }
+}
+
+/** POST /api/v1/admin/students/import — Administrator CSV student import. */
+export async function importStudentsOperation(
+  pool: Parameters<typeof importStudents>[0],
+  actor: AuthenticatedActor,
+  request: Request,
+): Promise<Response> {
+  const requestId = requestIdOf(request);
+  const suspended = activeOrSuspended(actor, requestId);
+  if (suspended !== null) {
+    return suspended;
+  }
+  // Administrator only (MVP story 33): every other role is refused before
+  // any row is read, so a denied attempt writes nothing.
+  if (!(actor.roles ?? []).includes("ADMINISTRATOR")) {
+    return errorResponse(
+      403,
+      "ROLE_NOT_PERMITTED",
+      "Only an Administrator may import student accounts",
+      requestId,
+      "MVP story 33",
+    );
+  }
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) {
+    return parsed.response;
+  }
+  const csv = field(parsed.value as Record<string, unknown>, "csv");
+  if (typeof csv !== "string") {
+    return errorResponse(400, "INVALID_REQUEST", "Field 'csv' must be a string", requestId);
+  }
+
+  try {
+    const outcome = await importStudents(pool, { csvText: csv, adminUserId: actor.userId });
+    if (!outcome.ok) {
+      return errorResponse(400, outcome.refusal.reason, outcome.refusal.message, requestId, outcome.refusal.requirements);
+    }
+    return Response.json(
+      { importedCount: outcome.summary.importedCount, rows: outcome.summary.rows },
       { status: 200 },
     );
   } catch (error) {
