@@ -32,7 +32,10 @@ import {
 } from "./db-harness.js";
 import { isStudentInAudience } from "../src/domain/audience.js";
 import { registerParticipant } from "../src/l4/register-participant.js";
-import { listPublishedEventsForStudent } from "../src/l4/registration-reads.js";
+import {
+  listEventParticipants,
+  listPublishedEventsForStudent,
+} from "../src/l4/registration-reads.js";
 import {
   listEventsOperation,
   registerOperation,
@@ -301,6 +304,17 @@ describe.skipIf(!configured)("Student profile, audience and eligibility, real Po
       [outcome.registrationId],
     );
     expect(rows[0]?.student_context.programme).toBe("BSIT");
+
+    // The acceptance criterion requires the snapshot retained "in reports",
+    // so the same retained snapshot must surface through the report seam
+    // (FR-REG-031 participant list), not only the raw column.
+    const participants = await listEventParticipants(appPool, eventId);
+    expect(participants).toHaveLength(1);
+    expect(participants[0]?.studentContext).toEqual({
+      programme: "BSIT",
+      year_level: 1,
+      organization_id: null,
+    });
   });
 
   it("handler cores refuse out-of-audience Registration with ELIGIBILITY over the wire", async () => {
