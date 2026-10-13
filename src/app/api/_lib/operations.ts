@@ -31,6 +31,13 @@ import { reduceEventCapacity } from "../../../l4/capacity.js";
 import { cancelRegistration } from "../../../l4/cancel-registration.js";
 import { registerParticipant } from "../../../l4/register-participant.js";
 import { setRegistrationOpen } from "../../../l4/registration-open.js";
+import { recordAttendance } from "../../../l4/record-attendance.js";
+import { recordWalkIn } from "../../../l4/record-walk-in.js";
+import { correctAttendance } from "../../../l4/correct-attendance.js";
+import {
+  getAttendanceCounts,
+  lookupParticipants,
+} from "../../../l4/attendance-reads.js";
 import {
   getEventRegistrationSummary,
   listEventParticipants,
@@ -40,9 +47,12 @@ import {
   cancelRefusalStatus,
   capacityRefusalStatus,
   contentionResponse,
+  correctAttendanceRefusalStatus,
   createEventRefusalStatus,
   errorResponse,
   internalError,
+  recordAttendanceRefusalStatus,
+  recordWalkInRefusalStatus,
   registrationOpenRefusalStatus,
   registrationRefusalStatus,
   suspendedAccount,
@@ -578,6 +588,244 @@ export async function reduceCapacityOperation(
       },
       { status: 200 },
     );
+  } catch (error) {
+    return failureResponse(error, requestId);
+  }
+}
+
+/** Roles that may record attendance via the staff-assisted path (USER-ROLES.md section 4). */
+const ATTENDANCE_RECORD_ROLES: readonly Role[] = ["ATTENDANCE_STAFF", "ADMINISTRATOR"];
+
+/** Attendance endpoints admit staff and administrators only. */
+function attendanceRoleResponse(
+  actor: AuthenticatedActor,
+  requestId: string | null,
+): Response | null {
+  const held = actor.roles ?? [];
+  if (!held.some((role) => ATTENDANCE_RECORD_ROLES.includes(role))) {
+    return errorResponse(
+      403,
+      "ROLE_NOT_PERMITTED",
+      "This role may not record attendance",
+      requestId,
+      "USER-ROLES.md section 4",
+    );
+  }
+  return null;
+}
+
+/** POST /api/v1/registrations/[registrationId]/attendance — record one attendance. */
+export async function recordAttendanceOperation(
+  pool: Parameters<typeof recordAttendance>[0],
+  actor: AuthenticatedActor,
+  request: Request,
+  registrationId: string,
+): Promise<Response> {
+  const requestId = requestIdOf(request);
+  const roleRefused = attendanceRoleResponse(actor, requestId);
+  if (roleRefused !== null) {
+    return roleRefused;
+  }
+  if (!isUuid(registrationId)) {
+    return invalidIdResponse("REGISTRATION", requestId);
+  }
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) {
+    return parsed.response;
+  }
+
+  try {
+    const outcome = await recordAttendance(pool, {
+      registrationId,
+      recordedByUserId: actor.userId,
+    });
+    if (!outcome.ok) {
+      return errorResponse(
+        recordAttendanceRefusalStatus(outcome.refusal.reason),
+        outcome.refusal.reason,
+        outcome.refusal.message,
+        requestId,
+        outcome.refusal.requirements,
+      );
+    }
+    return Response.json(
+      {
+        attendanceId: outcome.attendanceId,
+        registrationId: outcome.registrationId,
+        recordedAt: outcome.recordedAt.toISOString(),
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return failureResponse(error, requestId);
+  }
+}
+
+/** POST /api/v1/events/[eventId]/walk-ins — record one walk-in exception. */
+export async function recordWalkInOperation(
+  pool: Parameters<typeof recordWalkIn>[0],
+  actor: AuthenticatedActor,
+  request: Request,
+  eventId: string,
+): Promise<Response> {
+  const requestId = requestIdOf(request);
+  const roleRefused = attendanceRoleResponse(actor, requestId);
+  if (roleRefused !== null) {
+    return roleRefused;
+  }
+  if (!isUuid(eventId)) {
+    return invalidIdResponse("EVENT", requestId);
+  }
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) {
+    return parsed.response;
+  }
+  const reason = field(parsed.value as Record<string, unknown>, "reason");
+  if (typeof reason !== "string" || reason.trim() === "") {
+    return errorResponse(400, "MISSING_REASON", "A reason is required to record a walk-in", requestId, "ATT-12");
+  }
+
+  try {
+    const outcome = await recordWalkIn(pool, {
+      eventId,
+      recordedByUserId: actor.userId,
+      reason,
+    });
+    if (!outcome.ok) {
+      return errorResponse(
+        recordWalkInRefusalStatus(outcome.refusal.reason),
+        outcome.refusal.reason,
+        outcome.refusal.message,
+        requestId,
+        outcome.refusal.requirements,
+      );
+    }
+    return Response.json(
+      {
+        walkInId: outcome.walkInId,
+        eventId: outcome.eventId,
+        recordedAt: outcome.recordedAt.toISOString(),
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return failureResponse(error, requestId);
+  }
+}
+
+/**
+ * PATCH /api/v1/attendance/[attendanceId]/correction — the audited data-fix path.
+ *
+ * FR-ATT-016: an Event Officer may not correct attendance. Attendance Staff
+ * and Administrators correct with a reason (FR-ATT-014); every other role is
+ * refused before any use case runs.
+ */
+export async function correctAttendanceOperation(
+  pool: Parameters<typeof correctAttendance>[0],
+  actor: AuthenticatedActor,
+  request: Request,
+  attendanceId: string,
+): Promise<Response> {
+  const requestId = requestIdOf(request);
+  const suspended = activeOrSuspended(actor, requestId);
+  if (suspended !== null) {
+    return suspended;
+  }
+  const roleRefused = attendanceRoleResponse(actor, requestId);
+  if (roleRefused !== null) {
+    return roleRefused;
+  }
+  if (!isUuid(attendanceId)) {
+    return invalidIdResponse("ATTENDANCE", requestId);
+  }
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) {
+    return parsed.response;
+  }
+  const body = parsed.value as Record<string, unknown>;
+  const reason = field(body, "reason");
+  if (typeof reason !== "string" || reason.trim() === "") {
+    return errorResponse(400, "MISSING_REASON", "A reason is required to correct an attendance record", requestId, "FR-ATT-015");
+  }
+  const present = field(body, "present");
+  if (typeof present !== "boolean") {
+    return errorResponse(400, "INVALID_REQUEST", "Field 'present' must be a boolean", requestId);
+  }
+
+  try {
+    const outcome = await correctAttendance(pool, {
+      attendanceId,
+      correctedByUserId: actor.userId,
+      reason,
+      present,
+    });
+    if (!outcome.ok) {
+      return errorResponse(
+        correctAttendanceRefusalStatus(outcome.refusal.reason),
+        outcome.refusal.reason,
+        outcome.refusal.message,
+        requestId,
+        outcome.refusal.requirements,
+      );
+    }
+    return Response.json(
+      {
+        attendanceId: outcome.attendanceId,
+        present: outcome.present,
+        correctedAt: outcome.correctedAt.toISOString(),
+      },
+      { status: 200 },
+    );
+  } catch (error) {
+    return failureResponse(error, requestId);
+  }
+}
+
+/** GET /api/v1/events/[eventId]/attendance/summary — the four live counts. */
+export async function attendanceSummaryOperation(
+  pool: Parameters<typeof getAttendanceCounts>[0],
+  actor: AuthenticatedActor,
+  request: Request,
+  eventId: string,
+): Promise<Response> {
+  const requestId = requestIdOf(request);
+  const suspended = activeOrSuspended(actor, requestId);
+  if (suspended !== null) {
+    return suspended;
+  }
+  if (!isUuid(eventId)) {
+    return invalidIdResponse("EVENT", requestId);
+  }
+  try {
+    const counts = await getAttendanceCounts(pool, eventId);
+    return Response.json({ counts }, { status: 200 });
+  } catch (error) {
+    return failureResponse(error, requestId);
+  }
+}
+
+/** GET /api/v1/events/[eventId]/attendance/lookup — staff participant lookup. */
+export async function lookupParticipantsOperation(
+  pool: Parameters<typeof lookupParticipants>[0],
+  actor: AuthenticatedActor,
+  request: Request,
+  eventId: string,
+): Promise<Response> {
+  const requestId = requestIdOf(request);
+  const suspended = activeOrSuspended(actor, requestId);
+  if (suspended !== null) {
+    return suspended;
+  }
+  if (!isUuid(eventId)) {
+    return invalidIdResponse("EVENT", requestId);
+  }
+  const query = new URL(request.url).searchParams.get("query") ?? "";
+  if (query.trim() === "") {
+    return errorResponse(400, "MISSING_QUERY", "A lookup query is required", requestId);
+  }
+  try {
+    const participants = await lookupParticipants(pool, eventId, query);
+    return Response.json({ participants }, { status: 200 });
   } catch (error) {
     return failureResponse(error, requestId);
   }

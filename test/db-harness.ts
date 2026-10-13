@@ -30,6 +30,8 @@ import { up } from "../src/db/migrate.js";
 export const MANAGEABLE_TABLES = [
   "erns.audit_log",
   "erns.registration",
+  "erns.attendance",
+  "erns.walk_in",
   "erns.notification_recipient",
   "erns.notification",
   "erns.session",

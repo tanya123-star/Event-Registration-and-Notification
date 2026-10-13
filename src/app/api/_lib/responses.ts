@@ -35,6 +35,11 @@ import type {
   RemovalRejection,
 } from "../../../db/registration-store.types.js";
 import type { CreateEventRefusalReason as EventRefusalReason } from "../../../db/event-store.types.js";
+import type {
+  CorrectAttendanceRefusalReason,
+  RecordAttendanceRefusalReason,
+  RecordWalkInRefusalReason,
+} from "../../../db/attendance-store.types.js";
 
 export interface ErrorBody {
   readonly error: {
@@ -149,6 +154,44 @@ export function capacityRefusalStatus(
     return refusal.reason === "REGISTRATION_NOT_FOUND" ? 404 : 409;
   }
   return 409;
+}
+
+/** Attendance-recording refusals to status. 409 = state conflict; the message says which. */
+export function recordAttendanceRefusalStatus(reason: RecordAttendanceRefusalReason): number {
+  switch (reason) {
+    case "REGISTRATION_NOT_FOUND":
+      return 404;
+    case "CANCELLED_REGISTRATION":
+    case "WINDOW_NOT_CONFIGURED":
+    case "OUTSIDE_WINDOW":
+    case "ALREADY_RECORDED":
+      return 409;
+  }
+}
+
+/** Walk-in refusals to status. */
+export function recordWalkInRefusalStatus(reason: RecordWalkInRefusalReason): number {
+  switch (reason) {
+    case "EVENT_NOT_FOUND":
+      return 404;
+    case "MISSING_REASON":
+      return 400;
+    case "WINDOW_NOT_CONFIGURED":
+    case "OUTSIDE_WINDOW":
+      return 409;
+  }
+}
+
+/** Attendance-correction refusals to status. */
+export function correctAttendanceRefusalStatus(reason: CorrectAttendanceRefusalReason): number {
+  switch (reason) {
+    case "ATTENDANCE_NOT_FOUND":
+      return 404;
+    case "MISSING_REASON":
+      return 400;
+    case "ALREADY_CORRECTED":
+      return 409;
+  }
 }
 
 /** Close/reopen refusals to status. */

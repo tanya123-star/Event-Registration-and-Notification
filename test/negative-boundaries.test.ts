@@ -422,8 +422,9 @@ describe.skipIf(!configured)("NEG boundary conditions, real PostgreSQL", () => {
    */
   describe("NEG scenarios not applicable to the current schema", () => {
     it("NEG-06 through NEG-09 depend on entities that do not exist yet", () => {
-      // NEG-06 zero-length attendance window — Attendance does not exist.
-      // NEG-07, NEG-08 notification delivery — Notification does not exist (blocked by OQ-56).
+      // NEG-06 zero-length attendance window — Attendance does not exist (issue #8).
+      // NEG-07, NEG-08 notification delivery — Notification landed in 0007 (issue #6);
+      //   delivery-attempt coverage belongs to issue #7 (email delivery layer).
       // NEG-09 empty event description at submission — PB-01 event creation is not implemented, and
       //   DATA-MODEL.md line 175 marks description Required without a non-blank CHECK, so the rule is
       //   not yet expressible at the store.
@@ -433,26 +434,29 @@ describe.skipIf(!configured)("NEG boundary conditions, real PostgreSQL", () => {
       expect(typeof "NEG-06").toBe("string");
     });
 
-    it("no attendance or notification table exists in the schema", async () => {
+    it("attendance and walk-in tables exist in the schema (0008)", async () => {
       const { rows } = await ownerPool.query<{ table_name: string }>(
         `SELECT table_name FROM information_schema.tables
           WHERE table_schema = 'erns' ORDER BY table_name`,
       );
       const names = rows.map((r) => r.table_name);
-      // Updated visibly for 0006 (MVP T3 StudentProfile, issue #4): student_profile
-      // is the only addition. Attendance and notification stay absent.
+      // Updated visibly for 0008 (MVP T7 attendance, issue #8): attendance
+      // and walk_in are present. The catalog below still pins which NEG
+      // scenarios remain uncovered.
       expect(names).toEqual([
         "app_user",
+        "attendance",
         "audit_log",
         "event",
+        "notification",
+        "notification_recipient",
         "registration",
         "schema_migrations",
         "session",
         "student_profile",
         "user_role",
+        "walk_in",
       ]);
-      expect(names).not.toContain("attendance");
-      expect(names).not.toContain("notification");
     });
   });
 });
