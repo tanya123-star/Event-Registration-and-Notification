@@ -16,6 +16,7 @@ import { RollbackSignal, withTransaction } from "../db/client.js";
 import { appendAuditRow } from "../db/registration-persistence.js";
 import {
   insertWalkInRow,
+  readDatabaseNow,
   readWalkInFacts,
 } from "../db/attendance-persistence.js";
 import { evaluateAttendanceWindow } from "../domain/attendance-window.js";
@@ -68,8 +69,7 @@ export async function recordWalkIn(
   const client = await pool.connect();
   let now: Date;
   try {
-    const { rows } = await client.query<{ now: Date }>("SELECT now() AS now");
-    now = rows[0]?.now ?? new Date();
+    now = await readDatabaseNow(client);
   } finally {
     client.release();
   }
