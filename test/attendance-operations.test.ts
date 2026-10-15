@@ -266,8 +266,42 @@ describe.skipIf(!configured)("attendance handler cores, real PostgreSQL", () => 
     });
   });
 
-  it("looks up participants by name for the assigned event only, name plus reference", async () => {
+  it("denies the summary and lookup to every role but staff and administrators (ADR-0001)", async () => {
+    const userId = await seedUser(ownerPool);
     const staffId = await seedUser(ownerPool);
+    const eventId = await seedOpenEvent();
+    await seedRegistration(ownerPool, { userId, eventId });
+
+    for (const roles of [["EVENT_OFFICER"], ["STUDENT"], ["APPROVER"]] as const) {
+      const deniedId = await seedUser(ownerPool);
+      const summary = await attendanceSummaryOperation(
+        appPool,
+        actor(deniedId, [...roles]),
+        get(`/api/v1/events/${eventId}/attendance/summary`),
+        eventId,
+      );
+      expect(summary.status).toBe(403);
+      expect((await errorOf(summary)).code).toBe("ROLE_NOT_PERMITTED");
+
+      const lookup = await lookupParticipantsOperation(
+        appPool,
+        actor(deniedId, [...roles]),
+        get(`/api/v1/events/${eventId}/attendance/lookup?query=Ana`),
+        eventId,
+      );
+      expect(lookup.status).toBe(403);
+    }
+
+    const staffSummary = await attendanceSummaryOperation(
+      appPool,
+      actor(staffId, ["ATTENDANCE_STAFF"]),
+      get(`/api/v1/events/${eventId}/attendance/summary`),
+      eventId,
+    );
+    expect(staffSummary.status).toBe(200);
+  });
+
+  it("looks up participants by name for the assigned event only, name plus reference", async () => {    const staffId = await seedUser(ownerPool);
     const eventId = await seedOpenEvent();
     const otherEventId = await seedOpenEvent();
     const userId = await seedUser(ownerPool, { displayName: "Amara Okafor" });

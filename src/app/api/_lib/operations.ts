@@ -597,9 +597,33 @@ export async function reduceCapacityOperation(
 /** Roles that may record attendance via the staff-assisted path (USER-ROLES.md section 4). */
 const ATTENDANCE_RECORD_ROLES: readonly Role[] = ["ATTENDANCE_STAFF", "ADMINISTRATOR"];
 
-/** Attendance endpoints admit staff and administrators only. */
-function attendanceRoleResponse(
+/**
+ * Owner decision (code-review finding on #8, ADR-0001 minimum-necessary):
+ * the attendance summary and participant lookup expose participant names
+ * and Confirmation references, so Attendance Staff and Administrators read
+ * them; every other role is denied. Students must not see other students'
+ * rows, and officers read their owned-event summary through the reports
+ * milestone (#11), not here.
+ */
+function attendanceReadRoleResponse(
   actor: AuthenticatedActor,
+  requestId: string | null,
+): Response | null {
+  const held = actor.roles ?? [];
+  if (!held.some((role) => ATTENDANCE_RECORD_ROLES.includes(role))) {
+    return errorResponse(
+      403,
+      "ROLE_NOT_PERMITTED",
+      "This role may not view attendance activity",
+      requestId,
+      "ADR-0001",
+    );
+  }
+  return null;
+}
+
+/** Attendance endpoints admit staff and administrators only. */
+function attendanceRoleResponse(  actor: AuthenticatedActor,
   requestId: string | null,
 ): Response | null {
   const held = actor.roles ?? [];
@@ -847,6 +871,10 @@ export async function attendanceSummaryOperation(
   if (suspended !== null) {
     return suspended;
   }
+  const roleRefused = attendanceReadRoleResponse(actor, requestId);
+  if (roleRefused !== null) {
+    return roleRefused;
+  }
   if (!isUuid(eventId)) {
     return invalidIdResponse("EVENT", requestId);
   }
@@ -869,6 +897,10 @@ export async function lookupParticipantsOperation(
   const suspended = activeOrSuspended(actor, requestId);
   if (suspended !== null) {
     return suspended;
+  }
+  const roleRefused = attendanceReadRoleResponse(actor, requestId);
+  if (roleRefused !== null) {
+    return roleRefused;
   }
   if (!isUuid(eventId)) {
     return invalidIdResponse("EVENT", requestId);
