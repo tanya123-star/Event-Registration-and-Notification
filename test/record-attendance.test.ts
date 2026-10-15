@@ -179,6 +179,26 @@ describe.skipIf(!configured)("staff-assisted attendance recording, real PostgreS
     }
   });
 
+  it("refuses an unknown registration id with nothing written", async () => {
+    const staffId = await seedUser(ownerPool);
+
+    for (const registrationId of [
+      "11111111-1111-1111-1111-111111111111",
+      "not-a-uuid",
+    ]) {
+      const outcome = await recordAttendance(appPool, { registrationId, recordedByUserId: staffId });
+      expect(outcome.ok).toBe(false);
+      if (!outcome.ok) {
+        expect(outcome.refusal.reason).toBe("REGISTRATION_NOT_FOUND");
+        expect(outcome.refusal.requirements).toBe("FR-ATT-001");
+      }
+    }
+    const { rows } = await appPool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM erns.attendance`,
+    );
+    expect(rows[0]?.count).toBe("0");
+  });
+
   it("writes an AUD-15 audit row with the staff identity as actor", async () => {
     const userId = await seedUser(ownerPool);
     const staffId = await seedUser(ownerPool);
