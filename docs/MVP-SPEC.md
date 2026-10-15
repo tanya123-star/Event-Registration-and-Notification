@@ -127,6 +127,7 @@ Deferred to Phase 2 with reasons (decisions 3, 8, 10, 19):
 - **Check-in/check-out pair (decision 8)**: deferred because one presence record per Registration keeps the storage uniqueness guarantee simple and honest. In/out doubles the state space (missing exits, partial pairs) for value not requested by the interview. Returns only with a specified missing-exit rule.
 - **SMS sending (decision 10)**: deferred because no confirmed availability exists and SMS would contradict the locked in-app-plus-email model. Only the mock seam ships, proving the boundary without moving traffic.
 - **Structured post-event evaluation (decision 19)**: deferred because operational reports unblock the MVP while evaluation design (owner, window, archive gate) is still open. Officers keep current practice during the MVP; pain point PP-15 stays explicitly unaddressed.
+- **Student-number lookup**: deferred because OQ-07 is open and no student-number column exists; staff participant lookup is by name and Confirmation reference only. Returns once OQ-07 is answered and the column lands with its uniqueness decision.
 
 Also out of scope per the locked list: facial recognition, AI planning or attendance verification, payments, social networking or chat, GPS, recommendations, analytics dashboards, native mobile apps, offline-first operation, multi-tenancy, waitlists, student self-provisioning, automatic approval advancement.
 
@@ -140,5 +141,6 @@ Assumptions pending sign-off (defaults applied; implementation must not silently
 - **A4 (OQ-04)**: Security approval above a participant threshold or at non-standard venues; threshold undefined. Sign-off: Security Office, Council Secretary.
 - **A5 (OQ-30, OQ-32)**: hosting platform undecided; school email exists but sending permission, limits and deliverability unverified. Sign-off: IT.
 - **A6 (OQ-62)**: delegated sender mailbox unowned; no domain-wide delegation authorised; delivery must not be represented as available until answered. Sign-off: Council Secretary, IT.
+- **A7 (OQ-07)**: staff participant lookup is by name and Confirmation reference only; student-number lookup is deferred to Phase 2 because no student-number column exists. Sign-off: Council Secretary, IT.
 
 RA 10173 posture: ADR-0001 minimum-necessary exposure governs every report, export and lookup in this spec. Venue connectivity for future QR (AS-06) is assumed adequate pending a walkthrough; offline scanning is not planned.
