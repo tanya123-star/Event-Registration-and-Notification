@@ -623,6 +623,10 @@ export async function recordAttendanceOperation(
   registrationId: string,
 ): Promise<Response> {
   const requestId = requestIdOf(request);
+  const suspended = activeOrSuspended(actor, requestId);
+  if (suspended !== null) {
+    return suspended;
+  }
   const roleRefused = attendanceRoleResponse(actor, requestId);
   if (roleRefused !== null) {
     return roleRefused;
@@ -670,6 +674,10 @@ export async function recordWalkInOperation(
   eventId: string,
 ): Promise<Response> {
   const requestId = requestIdOf(request);
+  const suspended = activeOrSuspended(actor, requestId);
+  if (suspended !== null) {
+    return suspended;
+  }
   const roleRefused = attendanceRoleResponse(actor, requestId);
   if (roleRefused !== null) {
     return roleRefused;

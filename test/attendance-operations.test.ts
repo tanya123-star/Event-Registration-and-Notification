@@ -133,6 +133,63 @@ describe.skipIf(!configured)("attendance handler cores, real PostgreSQL", () => 
     expect(student.status).toBe(403);
   });
 
+  it("refuses a suspended recorder on both record operations with 403 (AUTH-12)", async () => {
+    const userId = await seedUser(ownerPool);
+    const suspendedStaffId = await seedUser(ownerPool);
+    const suspendedAdminId = await seedUser(ownerPool);
+    const eventId = await seedOpenEvent();
+    const registrationId = await seedRegistration(ownerPool, { userId, eventId });
+
+    const suspended = (userIdToSuspend: string, roles: AuthenticatedActor["roles"]): AuthenticatedActor => ({
+      userId: userIdToSuspend,
+      accountStatus: "SUSPENDED",
+      roles,
+    });
+
+    const staffRecord = await recordAttendanceOperation(
+      appPool,
+      suspended(suspendedStaffId, ["ATTENDANCE_STAFF"]),
+      post(`/api/v1/registrations/${registrationId}/attendance`, {}),
+      registrationId,
+    );
+    expect(staffRecord.status).toBe(403);
+    expect((await errorOf(staffRecord)).code).toBe("ACCOUNT_SUSPENDED");
+
+    const adminRecord = await recordAttendanceOperation(
+      appPool,
+      suspended(suspendedAdminId, ["ADMINISTRATOR"]),
+      post(`/api/v1/registrations/${registrationId}/attendance`, {}),
+      registrationId,
+    );
+    expect(adminRecord.status).toBe(403);
+
+    const staffWalkIn = await recordWalkInOperation(
+      appPool,
+      suspended(suspendedStaffId, ["ATTENDANCE_STAFF"]),
+      post(`/api/v1/events/${eventId}/walk-ins`, { reason: "Door guest" }),
+      eventId,
+    );
+    expect(staffWalkIn.status).toBe(403);
+    expect((await errorOf(staffWalkIn)).code).toBe("ACCOUNT_SUSPENDED");
+
+    const adminWalkIn = await recordWalkInOperation(
+      appPool,
+      suspended(suspendedAdminId, ["ADMINISTRATOR"]),
+      post(`/api/v1/events/${eventId}/walk-ins`, { reason: "Door guest" }),
+      eventId,
+    );
+    expect(adminWalkIn.status).toBe(403);
+
+    const { rows: attendance } = await appPool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM erns.attendance`,
+    );
+    expect(attendance[0]?.count).toBe("0");
+    const { rows: walkIns } = await appPool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM erns.walk_in`,
+    );
+    expect(walkIns[0]?.count).toBe("0");
+  });
+
   it("maps the duplicate to 409 and a malformed id to 400", async () => {
     const userId = await seedUser(ownerPool);
     const staffId = await seedUser(ownerPool);
