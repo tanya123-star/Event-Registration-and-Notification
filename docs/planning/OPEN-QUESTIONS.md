@@ -98,31 +98,32 @@ Why it matters: The interview named Council, Dean, Student Affairs, and Security
 established who holds final authority. The whole approval module depends on this.
 Who can answer: Council Secretary, Dean, Student Affairs Office
 Default assumption: Council holds final authority; other offices advise.
-Status: OPEN
+Status: ASSUMED, pending sign-off (owner decision 2026-10-15; revisit on Council reply)
 
 **OQ-02 — Which events require Dean approval?**
 Priority: BLOCKING
 Blocks: Per-event-type chain configuration
 Who can answer: Dean's office
-Default assumption: Events requiring external coordination or off-campus venues require Dean
-approval. Event types are not yet enumerated, so this cannot be finalised.
-Status: OPEN
+Default assumption: Dean approval only for off-campus events or events requiring
+outside coordination. Event types are not yet enumerated, so this cannot be finalised.
+Status: ASSUMED, pending sign-off (owner decision 2026-10-15; revisit on Council reply)
 
 **OQ-03 — Which events require Student Affairs approval?**
 Priority: HIGH
 Blocks: Per-event-type chain configuration
 Who can answer: Student Affairs Office
-Default assumption: Organization-wide assemblies and events involving minors or external
-participants.
-Status: OPEN
+Default assumption: OSA (Student Affairs) approval only for school-wide events, events
+involving minors, or events with outside guests.
+Status: ASSUMED, pending sign-off (owner decision 2026-10-15; revisit on Council reply)
 
 **OQ-04 — When is Security approval required?**
 Priority: BLOCKING
 Blocks: Per-event-type chain configuration
 Who can answer: Security Office, Council Secretary
-Default assumption: Events exceeding a participant threshold, or events at non-standard venues.
-The threshold is undefined and must be supplied by the Security Office.
-Status: OPEN
+Default assumption: Security approval above a configurable participant threshold
+(demo placeholder: 100 participants), or events at non-standard venues.
+The threshold is unsettled and must be confirmed by the Security Office.
+Status: ASSUMED, pending sign-off (owner decision 2026-10-15; revisit on Council reply)
 
 **OQ-05 — Should an exception path exist for events that cannot obtain approval in time?**
 Priority: HIGH
