@@ -12,6 +12,12 @@ import type { PoolClient } from "pg";
 import { UNIQUE_VIOLATION } from "./client.js";
 import type { AttendanceWindowLabel } from "../domain/attendance-window.js";
 
+/** Read the database clock. L2 owns all query text (SYSTEM-ARCHITECTURE.md 2.1). */
+export async function readDatabaseNow(client: PoolClient): Promise<Date> {
+  const { rows } = await client.query<{ now: Date }>("SELECT now() AS now");
+  return rows[0]?.now ?? new Date();
+}
+
 /** One registration with the facts an attendance decision needs. */
 export interface AttendanceFacts {
   readonly registrationId: string;

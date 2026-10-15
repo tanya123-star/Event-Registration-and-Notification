@@ -18,6 +18,7 @@ import { appendAuditRow } from "../db/registration-persistence.js";
 import {
   insertAttendanceRow,
   readAttendanceFacts,
+  readDatabaseNow,
 } from "../db/attendance-persistence.js";
 import { evaluateAttendanceWindow } from "../domain/attendance-window.js";
 import type {
@@ -68,8 +69,7 @@ export async function recordAttendance(
   if (effectiveNow === undefined) {
     const client = await pool.connect();
     try {
-      const { rows } = await client.query<{ now: Date }>("SELECT now() AS now");
-      effectiveNow = rows[0]?.now ?? new Date();
+      effectiveNow = await readDatabaseNow(client);
     } finally {
       client.release();
     }
